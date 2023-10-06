@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"database/sql"
 	"github.com/iambakhodir/short-link/domain"
 	"time"
 )
@@ -46,14 +47,13 @@ func (l linkUseCase) GetById(ctx context.Context, id int64) (domain.Link, error)
 	return res, nil
 }
 
-func (l linkUseCase) Update(ctx context.Context, link *domain.Link) error {
+func (l linkUseCase) Update(ctx context.Context, link domain.Link) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
 	defer cancel()
 
-	link.UpdatedAt = time.Now()
+	link.UpdatedAt = sql.NullTime{Time: time.Now(), Valid: true}
 
 	return l.linkRepo.Update(ctx, link)
-
 }
 
 func (l linkUseCase) GetByAlias(ctx context.Context, alias string) (domain.Link, error) {
@@ -68,18 +68,11 @@ func (l linkUseCase) GetByAlias(ctx context.Context, alias string) (domain.Link,
 	return res, nil
 }
 
-func (l linkUseCase) Store(ctx context.Context, link *domain.Link) error {
+func (l linkUseCase) Store(ctx context.Context, link domain.Link) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
 	defer cancel()
 
-	existedLink, _ := l.linkRepo.GetByAlias(ctx, link.Alias)
-	if existedLink != (domain.Link{}) {
-		return domain.ErrConflict
-	}
-
-	err := l.linkRepo.Store(ctx, link)
-
-	return err
+	return l.linkRepo.Store(ctx, link)
 }
 
 func (l linkUseCase) Delete(ctx context.Context, id int64) error {

@@ -3,14 +3,26 @@ package http
 import (
 	"github.com/go-playground/validator/v10"
 	"github.com/iambakhodir/short-link/domain"
+	"github.com/iambakhodir/short-link/domain/random"
 	"github.com/labstack/echo"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"net/http"
 	"strconv"
 )
 
 type ResponseError struct {
 	Message string `json:"message"`
+}
+
+type ResponseSuccessObject struct {
+	Message string      `json:"message"`
+	Data    domain.Link `json:"data"`
+}
+
+type ResponseSuccessArray struct {
+	Message string        `json:"message"`
+	Data    []domain.Link `json:"data"`
 }
 
 type LinkHandler struct {
@@ -22,7 +34,7 @@ func NewLinkHandler(e *echo.Echo, us domain.LinkUseCase) {
 		LUseCae: us,
 	}
 
-	e.GET("/links", handler.FetchLink)
+	e.GET("/links", handler.FetchLinks)
 	e.GET("/links/:id", handler.GetByID)
 	e.POST("/links", handler.StoreLink)
 	e.DELETE("/links/:id", handler.DeleteLink)
@@ -55,10 +67,10 @@ func (lh *LinkHandler) GetByID(c echo.Context) error {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, link)
+	return c.JSON(http.StatusOK, ResponseSuccessObject{Message: "ok", Data: link})
 }
 
-func (lh *LinkHandler) FetchLink(c echo.Context) error {
+func (lh *LinkHandler) FetchLinks(c echo.Context) error {
 	limitParam := c.QueryParam("limit")
 	limit, _ := strconv.Atoi(limitParam)
 	//cursor := c.QueryParam("cursor")
@@ -69,28 +81,49 @@ func (lh *LinkHandler) FetchLink(c echo.Context) error {
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
-	return c.JSON(http.StatusOK, listLinks)
+	return c.JSON(http.StatusOK, ResponseSuccessArray{Message: "ok", Data: listLinks})
 }
 
 func (lh *LinkHandler) StoreLink(c echo.Context) error {
-	var link domain.Link
-	err := c.Bind(&link)
+	var req domain.LinkRequest
+
+	err := c.Bind(&req)
 	if err != nil {
 		return c.JSON(http.StatusUnprocessableEntity, ResponseError{Message: err.Error()})
 	}
 
 	var ok bool
-	if ok, err = isRequestValid(&link); !ok {
+	if ok, err = isRequestValid(&req); !ok {
 		return c.JSON(http.StatusUnprocessableEntity, ResponseError{Message: err.Error()})
 	}
 
+	alias := req.Alias
+	length := req.Length
+
+	if alias == "" {
+		if length > 0 {
+			alias = random.NewRandomString(length) //TODO improve generator
+		} else {
+			alias = random.NewRandomString(viper.GetInt("alias_length")) //TODO improve generator
+		}
+	}
+
 	ctx := c.Request().Context()
-	err = lh.LUseCae.Store(ctx, &link)
+
+	id, err := lh.LUseCae.Store(ctx, domain.Link{
+		Target: req.Target,
+		Alias:  alias,
+	})
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
 
-	return c.JSON(http.StatusCreated, link)
+	link, err := lh.LUseCae.GetById(ctx, id)
+	if err != nil {
+		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
+	}
+
+	return c.JSON(http.StatusCreated, ResponseSuccessObject{Message: "ok", Data: link})
 }
 
 func (lh *LinkHandler) DeleteLink(c echo.Context) error {
@@ -123,12 +156,14 @@ func getStatusCode(err error) int {
 		return http.StatusNotFound
 	case domain.ErrConflict:
 		return http.StatusConflict
+	case domain.ErrLinkIsExists:
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}
 }
 
-func isRequestValid(m *domain.Link) (bool, error) {
+func isRequestValid(m *domain.LinkRequest) (bool, error) {
 	validate := validator.New()
 	err := validate.Struct(m)
 	if err != nil {

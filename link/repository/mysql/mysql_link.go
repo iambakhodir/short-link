@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
 	"github.com/iambakhodir/short-link/domain"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -34,15 +35,14 @@ func (m *mysqlLinkRepository) fetch(ctx context.Context, query string, args ...i
 	result = make([]domain.Link, 0)
 	for rows.Next() {
 		t := domain.Link{}
-		authorID := int64(0)
 		err = rows.Scan(
 			&t.ID,
-			&authorID,
+			&t.UserId,
 			&t.Alias,
 			&t.Target,
-			&t.DeletedAt,
 			&t.UpdatedAt,
 			&t.CreatedAt,
+			&t.DeletedAt,
 		)
 
 		if err != nil {
@@ -85,32 +85,32 @@ func (m *mysqlLinkRepository) GetById(ctx context.Context, id int64) (domain.Lin
 	}
 }
 
-func (m *mysqlLinkRepository) Update(ctx context.Context, link *domain.Link) error {
+func (m *mysqlLinkRepository) Update(ctx context.Context, link domain.Link) (int64, error) {
 	query := `UPDATE link SET alias = ?, target = ?, user_id =?, deleted_at = ?, updated_at = ? WHERE id = ?`
 
 	stmt, err := m.Conn.PrepareContext(ctx, query)
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	res, err := stmt.ExecContext(ctx, link.Alias, link.Target, link.UserId, link.DeletedAt, link.UpdatedAt, link.ID)
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	affect, err := res.RowsAffected()
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if affect != 1 {
-		return fmt.Errorf("Total Affected: %d", affect)
+		return 0, fmt.Errorf("Total Affected: %d", affect)
 	}
 
-	return nil
+	return link.ID, nil
 }
 
 func (m *mysqlLinkRepository) GetByAlias(ctx context.Context, alias string) (domain.Link, error) {
@@ -130,29 +130,39 @@ func (m *mysqlLinkRepository) GetByAlias(ctx context.Context, alias string) (dom
 	}
 }
 
-func (m *mysqlLinkRepository) Store(ctx context.Context, link *domain.Link) error {
+func (m *mysqlLinkRepository) Store(ctx context.Context, link domain.Link) (int64, error) {
 	query := `INSERT link SET alias = ?, target = ?, user_id = ?`
 
 	stmt, err := m.Conn.PrepareContext(ctx, query)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	res, err := stmt.ExecContext(ctx, link.Alias, link.Target, link.UserId)
 	if err != nil {
-		return err
+		mysqlErr, _ := err.(*mysql.MySQLError)
+		if mysqlErr.Number == 1062 { // MySQL error code for "Duplicate entry"
+			return 0, domain.ErrLinkIsExists
+		}
+
+		return 0, err
 	}
 
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if rowsAffected != 1 {
-		return fmt.Errorf("Total affected: %d", rowsAffected)
+		return 0, fmt.Errorf("Total affected: %d", rowsAffected)
 	}
 
-	return nil
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
 }
 
 func (m *mysqlLinkRepository) Delete(ctx context.Context, id int64) error {
