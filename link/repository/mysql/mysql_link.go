@@ -86,7 +86,7 @@ func (m *mysqlLinkRepository) GetById(ctx context.Context, id int64) (domain.Lin
 }
 
 func (m *mysqlLinkRepository) Update(ctx context.Context, link domain.Link) (int64, error) {
-	query := `UPDATE link SET alias = ?, target = ?, user_id =?, deleted_at = ?, updated_at = ? WHERE id = ?`
+	query := `UPDATE link SET alias = ?, target = ?, user_id =?, deleted_at = ?, updated_at = ?, description=? WHERE id = ?`
 
 	stmt, err := m.Conn.PrepareContext(ctx, query)
 
@@ -94,7 +94,7 @@ func (m *mysqlLinkRepository) Update(ctx context.Context, link domain.Link) (int
 		return 0, err
 	}
 
-	res, err := stmt.ExecContext(ctx, link.Alias, link.Target, link.UserId, link.DeletedAt, link.UpdatedAt, link.ID)
+	res, err := stmt.ExecContext(ctx, link.Alias, link.Target, link.UserId, link.DeletedAt, link.UpdatedAt, link.Description, link.ID)
 
 	if err != nil {
 		return 0, err
