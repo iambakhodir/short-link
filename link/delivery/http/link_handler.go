@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"github.com/go-playground/validator/v10"
 	"github.com/iambakhodir/short-link/domain"
 	"github.com/iambakhodir/short-link/domain/random"
@@ -16,22 +17,24 @@ type ResponseError struct {
 }
 
 type ResponseSuccessObject struct {
-	Message string      `json:"message"`
-	Data    domain.Link `json:"data"`
+	Message string              `json:"message"`
+	Data    domain.LinkResponse `json:"data"`
 }
 
 type ResponseSuccessArray struct {
-	Message string        `json:"message"`
-	Data    []domain.Link `json:"data"`
+	Message string                `json:"message"`
+	Data    []domain.LinkResponse `json:"data"`
 }
 
 type LinkHandler struct {
-	LUseCae domain.LinkUseCase
+	LUseCase       domain.LinkUseCase
+	TagsUseCase    domain.TagsUseCase
+	LinkTagUseCase domain.LinkTagUseCase
 }
 
 func NewLinkHandler(e *echo.Echo, us domain.LinkUseCase) {
 	handler := &LinkHandler{
-		LUseCae: us,
+		LUseCase: us,
 	}
 
 	e.GET("/links", handler.FetchLinks)
@@ -45,7 +48,7 @@ func (lh *LinkHandler) RedirectByAlias(c echo.Context) error {
 	aliasParam := c.QueryParam("limit")
 	ctx := c.Request().Context()
 
-	link, err := lh.LUseCae.GetByAlias(ctx, aliasParam)
+	link, err := lh.LUseCase.GetByAlias(ctx, aliasParam)
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
@@ -54,20 +57,33 @@ func (lh *LinkHandler) RedirectByAlias(c echo.Context) error {
 }
 
 func (lh *LinkHandler) GetByID(c echo.Context) error {
-	idParam, err := strconv.Atoi(c.QueryParam("id"))
+	idParam, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusNotFound, ResponseError{Message: err.Error()})
 	}
 
 	ctx := c.Request().Context()
 
-	link, err := lh.LUseCae.GetById(ctx, int64(idParam))
+	link, err := lh.LUseCase.GetById(ctx, int64(idParam))
 
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, ResponseSuccessObject{Message: "ok", Data: link})
+	logrus.Info("Link:", link)
+	tags, err := lh.TagsUseCase.FetchByLinkId(ctx, link.ID)
+	if err != nil {
+		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, ResponseSuccessObject{Message: "ok", Data: domain.LinkResponse{
+		ID:          link.ID,
+		Alias:       link.Alias,
+		Target:      link.Target,
+		Description: "",
+		CreatedAt:   link.CreatedAt,
+		Tags:        tags,
+	}})
 }
 
 func (lh *LinkHandler) FetchLinks(c echo.Context) error {
@@ -76,12 +92,29 @@ func (lh *LinkHandler) FetchLinks(c echo.Context) error {
 	//cursor := c.QueryParam("cursor")
 	ctx := c.Request().Context()
 
-	listLinks, err := lh.LUseCae.Fetch(ctx, int64(limit))
+	listLinks, err := lh.LUseCase.Fetch(ctx, int64(limit))
+
+	data := make([]domain.LinkResponse, 0)
+
+	for _, l := range listLinks {
+		tags, err := lh.TagsUseCase.FetchByLinkId(ctx, l.ID)
+		if err != nil {
+			return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
+		}
+		data = append(data, domain.LinkResponse{
+			ID:          l.ID,
+			Target:      l.Target,
+			Alias:       l.Alias,
+			Description: "",
+			CreatedAt:   l.CreatedAt,
+			Tags:        tags,
+		})
+	}
 
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
-	return c.JSON(http.StatusOK, ResponseSuccessArray{Message: "ok", Data: listLinks})
+	return c.JSON(http.StatusOK, ResponseSuccessArray{Message: "ok", Data: data})
 }
 
 func (lh *LinkHandler) StoreLink(c echo.Context) error {
@@ -110,7 +143,7 @@ func (lh *LinkHandler) StoreLink(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	id, err := lh.LUseCae.Store(ctx, domain.Link{
+	id, err := lh.LUseCase.Store(ctx, domain.Link{
 		Target: req.Target,
 		Alias:  alias,
 	})
@@ -118,12 +151,27 @@ func (lh *LinkHandler) StoreLink(c echo.Context) error {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
 
-	link, err := lh.LUseCae.GetById(ctx, id)
+	lh.createAndAttachTags(ctx, id, req.Tags)
+
+	link, err := lh.LUseCase.GetById(ctx, id)
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
 
-	return c.JSON(http.StatusCreated, ResponseSuccessObject{Message: "ok", Data: link})
+	tags, err := lh.TagsUseCase.FetchByLinkId(ctx, link.ID)
+	if err != nil {
+		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
+	}
+
+	return c.JSON(http.StatusCreated, ResponseSuccessObject{Message: "ok", Data: domain.LinkResponse{
+		ID:          link.ID,
+		Alias:       link.Alias,
+		Target:      link.Target,
+		Description: "",
+		CreatedAt:   link.CreatedAt,
+		Tags:        tags,
+	}})
+
 }
 
 func (lh *LinkHandler) DeleteLink(c echo.Context) error {
@@ -135,7 +183,7 @@ func (lh *LinkHandler) DeleteLink(c echo.Context) error {
 	id := int64(idParam)
 	ctx := c.Request().Context()
 
-	err = lh.LUseCae.Delete(ctx, id)
+	err = lh.LUseCase.Delete(ctx, id)
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
@@ -170,4 +218,18 @@ func isRequestValid(m *domain.LinkRequest) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func (lh *LinkHandler) createAndAttachTags(ctx context.Context, linkId int64, tags []string) {
+	for _, tag := range tags {
+		t, err := lh.TagsUseCase.Store(ctx, domain.Tags{Name: tag})
+		if err != nil {
+			continue
+		}
+
+		_, err = lh.LinkTagUseCase.Store(ctx, domain.LinkTag{TagId: t, LinkId: linkId})
+		if err != nil {
+			continue
+		}
+	}
 }

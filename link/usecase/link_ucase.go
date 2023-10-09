@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"database/sql"
 	"github.com/iambakhodir/short-link/domain"
 	"time"
 )
@@ -16,17 +15,17 @@ func NewLinkUseCase(linkRepo domain.LinkRepository, timeout time.Duration) domai
 	return &linkUseCase{linkRepo: linkRepo, contextTimeout: timeout}
 }
 
-func (l linkUseCase) Fetch(ctx context.Context, limit int64) ([]domain.Link, error) {
+func (lu linkUseCase) Fetch(ctx context.Context, limit int64) ([]domain.Link, error) {
 	if limit == 0 {
 		limit = 10
 	} else if limit > 100 {
 		limit = 100
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
+	ctx, cancel := context.WithTimeout(ctx, lu.contextTimeout)
 	defer cancel()
 
-	res, err := l.linkRepo.Fetch(ctx, limit)
+	res, err := lu.linkRepo.Fetch(ctx, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -35,11 +34,11 @@ func (l linkUseCase) Fetch(ctx context.Context, limit int64) ([]domain.Link, err
 
 }
 
-func (l linkUseCase) GetById(ctx context.Context, id int64) (domain.Link, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
+func (lu linkUseCase) GetById(ctx context.Context, id int64) (domain.Link, error) {
+	ctx, cancel := context.WithTimeout(ctx, lu.contextTimeout)
 	defer cancel()
 
-	res, err := l.linkRepo.GetById(ctx, id)
+	res, err := lu.linkRepo.GetById(ctx, id)
 	if err != nil {
 		return domain.Link{}, err
 	}
@@ -47,20 +46,20 @@ func (l linkUseCase) GetById(ctx context.Context, id int64) (domain.Link, error)
 	return res, nil
 }
 
-func (l linkUseCase) Update(ctx context.Context, link domain.Link) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
+func (lu linkUseCase) Update(ctx context.Context, link domain.Link) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, lu.contextTimeout)
 	defer cancel()
 
-	link.UpdatedAt = sql.NullTime{Time: time.Now(), Valid: true}
+	link.UpdatedAt = time.Now()
 
-	return l.linkRepo.Update(ctx, link)
+	return lu.linkRepo.Update(ctx, link)
 }
 
-func (l linkUseCase) GetByAlias(ctx context.Context, alias string) (domain.Link, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
+func (lu linkUseCase) GetByAlias(ctx context.Context, alias string) (domain.Link, error) {
+	ctx, cancel := context.WithTimeout(ctx, lu.contextTimeout)
 	defer cancel()
 
-	res, err := l.linkRepo.GetByAlias(ctx, alias)
+	res, err := lu.linkRepo.GetByAlias(ctx, alias)
 	if err != nil {
 		return domain.Link{}, err
 	}
@@ -68,18 +67,18 @@ func (l linkUseCase) GetByAlias(ctx context.Context, alias string) (domain.Link,
 	return res, nil
 }
 
-func (l linkUseCase) Store(ctx context.Context, link domain.Link) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
+func (lu linkUseCase) Store(ctx context.Context, link domain.Link) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, lu.contextTimeout)
 	defer cancel()
 
-	return l.linkRepo.Store(ctx, link)
+	return lu.linkRepo.Store(ctx, link)
 }
 
-func (l linkUseCase) Delete(ctx context.Context, id int64) error {
-	ctx, cancel := context.WithTimeout(ctx, l.contextTimeout)
+func (lu linkUseCase) Delete(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, lu.contextTimeout)
 	defer cancel()
 
-	existedLink, err := l.linkRepo.GetById(ctx, id)
+	existedLink, err := lu.linkRepo.GetById(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -88,5 +87,5 @@ func (l linkUseCase) Delete(ctx context.Context, id int64) error {
 		return domain.ErrNotFound
 	}
 
-	return l.linkRepo.Delete(ctx, id)
+	return lu.linkRepo.Delete(ctx, id)
 }

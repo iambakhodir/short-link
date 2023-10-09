@@ -40,6 +40,7 @@ func (m *mysqlLinkRepository) fetch(ctx context.Context, query string, args ...i
 			&t.UserId,
 			&t.Alias,
 			&t.Target,
+			&t.Description,
 			&t.UpdatedAt,
 			&t.CreatedAt,
 			&t.DeletedAt,
@@ -56,7 +57,7 @@ func (m *mysqlLinkRepository) fetch(ctx context.Context, query string, args ...i
 }
 
 func (m *mysqlLinkRepository) Fetch(ctx context.Context, limit int64) ([]domain.Link, error) {
-	query := `SELECT id, user_id, alias, target, deleted_at, created_at, updated_at
+	query := `SELECT id, user_id, alias, target, description, created_at, updated_at, deleted_at
 				FROM link ORDER BY created_at LIMIT ?`
 
 	res, err := m.fetch(ctx, query, limit)
@@ -69,7 +70,7 @@ func (m *mysqlLinkRepository) Fetch(ctx context.Context, limit int64) ([]domain.
 }
 
 func (m *mysqlLinkRepository) GetById(ctx context.Context, id int64) (domain.Link, error) {
-	query := `SELECT id, user_id, alias, target, deleted_at, created_at, updated_at
+	query := `SELECT id, user_id, alias, target, description, created_at, updated_at, deleted_at
 				FROM link where id = ?`
 
 	list, err := m.fetch(ctx, query, id)
@@ -114,7 +115,7 @@ func (m *mysqlLinkRepository) Update(ctx context.Context, link domain.Link) (int
 }
 
 func (m *mysqlLinkRepository) GetByAlias(ctx context.Context, alias string) (domain.Link, error) {
-	query := `SELECT id, user_id, alias, target, deleted_at, created_at, updated_at
+	query := `SELECT id, user_id, alias, target, description, created_at, updated_at, deleted_at
 				FROM link where alias = ?`
 
 	list, err := m.fetch(ctx, query, alias)
