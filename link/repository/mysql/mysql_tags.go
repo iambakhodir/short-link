@@ -81,9 +81,24 @@ func (m *mysqlTagsRepository) GetById(ctx context.Context, id int64) (domain.Tag
 	}
 }
 
-func (m *mysqlTagsRepository) FetchByLinkId(ctx context.Context, linkId int64) ([]domain.Tags, error) {
-	logrus.Info("Link id", linkId)
+func (m *mysqlTagsRepository) GetByName(ctx context.Context, name string) (domain.Tags, error) {
+	query := `SELECT id, name, created_at, updated_at
+				FROM tags where name = ?`
 
+	list, err := m.fetch(ctx, query, name)
+
+	if err != nil {
+		return domain.Tags{}, err
+	}
+
+	if len(list) > 0 {
+		return list[0], nil
+	} else {
+		return domain.Tags{}, domain.ErrNotFound
+	}
+}
+
+func (m *mysqlTagsRepository) FetchByLinkId(ctx context.Context, linkId int64) ([]domain.Tags, error) {
 	query := `SELECT t.id, t.name, t.created_at, t.updated_at
 				FROM tags as t LEFT JOIN link_tag as lt 
 				    ON t.id = lt.tag_id where lt.link_id = ?`
@@ -100,7 +115,7 @@ func (m *mysqlTagsRepository) Update(ctx context.Context, tags domain.Tags) (int
 		return 0, err
 	}
 
-	res, err := stmt.ExecContext(ctx, tags.Name, tags.UpdatedAt, tags.ID)
+	res, err := stmt.ExecContext(ctx, tags.Name, tags.ID)
 
 	if err != nil {
 		return 0, err
@@ -120,6 +135,45 @@ func (m *mysqlTagsRepository) Update(ctx context.Context, tags domain.Tags) (int
 }
 
 func (m *mysqlTagsRepository) Store(ctx context.Context, tags domain.Tags) (int64, error) {
+	query := `INSERT tags SET name = ?`
+
+	stmt, err := m.Conn.PrepareContext(ctx, query)
+	if err != nil {
+		return 0, err
+	}
+
+	res, err := stmt.ExecContext(ctx, tags.Name)
+	if err != nil {
+		mysqlErr, _ := err.(*mysql.MySQLError)
+		if mysqlErr.Number == 1062 { // MySQL error code for "Duplicate entry"
+			return 0, domain.ErrConflict
+		}
+
+		return 0, err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	if rowsAffected != 1 {
+		return 0, fmt.Errorf("Total affected: %d", rowsAffected)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+func (m *mysqlTagsRepository) FirstOrCreate(ctx context.Context, tags domain.Tags) (int64, error) {
+	tag, err := m.GetByName(ctx, tags.Name)
+	if err == nil {
+		return tag.ID, nil
+	}
+
 	query := `INSERT tags SET name = ?`
 
 	stmt, err := m.Conn.PrepareContext(ctx, query)

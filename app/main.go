@@ -67,7 +67,13 @@ func main() {
 	timeOutContext := time.Duration(viper.GetInt("context.timeout")) * time.Second
 	lu := usecase.NewLinkUseCase(linkRepo, timeOutContext)
 
-	_linkHttpDelivery.NewLinkHandler(e, lu)
+	linkTagRepo := _linkRepo.NewMysqlLinkTagRepository(dbConn)
+	linkTagUcase := usecase.NewLinkTagUseCase(linkTagRepo, timeOutContext)
+
+	tagsRepo := _linkRepo.NewMysqlTagsRepository(dbConn)
+	tagsUcase := usecase.NewTagsUseCase(tagsRepo, timeOutContext)
+
+	_linkHttpDelivery.NewLinkHandler(e, lu, tagsUcase, linkTagUcase)
 
 	log.Fatal(e.Start(viper.GetString("server.address"))) //nolint
 }

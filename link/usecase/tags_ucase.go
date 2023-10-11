@@ -61,6 +61,22 @@ func (t tagsUseCase) GetById(ctx context.Context, id int64) (domain.Tags, error)
 	return res, nil
 }
 
+func (t tagsUseCase) GetByName(ctx context.Context, name string) (domain.Tags, error) {
+	ctx, cancel := context.WithTimeout(ctx, t.contextTimeout)
+	defer cancel()
+
+	res, err := t.tagsRepo.GetByName(ctx, name)
+	if err != nil {
+		return domain.Tags{}, err
+	}
+
+	if res == (domain.Tags{}) {
+		return domain.Tags{}, domain.ErrNotFound
+	}
+
+	return res, nil
+}
+
 func (t tagsUseCase) Update(ctx context.Context, tags domain.Tags) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, t.contextTimeout)
 	defer cancel()
@@ -84,6 +100,13 @@ func (t tagsUseCase) Store(ctx context.Context, tags domain.Tags) (int64, error)
 	defer cancel()
 
 	return t.tagsRepo.Store(ctx, tags)
+}
+
+func (t tagsUseCase) FirstOrCreate(ctx context.Context, tags domain.Tags) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, t.contextTimeout)
+	defer cancel()
+
+	return t.tagsRepo.FirstOrCreate(ctx, tags)
 }
 
 func (t tagsUseCase) Delete(ctx context.Context, id int64) error {

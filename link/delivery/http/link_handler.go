@@ -32,9 +32,11 @@ type LinkHandler struct {
 	LinkTagUseCase domain.LinkTagUseCase
 }
 
-func NewLinkHandler(e *echo.Echo, us domain.LinkUseCase) {
+func NewLinkHandler(e *echo.Echo, us domain.LinkUseCase, tagsUcase domain.TagsUseCase, linkTagUcase domain.LinkTagUseCase) {
 	handler := &LinkHandler{
-		LUseCase: us,
+		LUseCase:       us,
+		TagsUseCase:    tagsUcase,
+		LinkTagUseCase: linkTagUcase,
 	}
 
 	e.GET("/links", handler.FetchLinks)
@@ -70,8 +72,8 @@ func (lh *LinkHandler) GetByID(c echo.Context) error {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
 
-	logrus.Info("Link:", link)
 	tags, err := lh.TagsUseCase.FetchByLinkId(ctx, link.ID)
+
 	if err != nil {
 		return c.JSON(getStatusCode(err), ResponseError{Message: err.Error()})
 	}
@@ -222,14 +224,15 @@ func isRequestValid(m *domain.LinkRequest) (bool, error) {
 
 func (lh *LinkHandler) createAndAttachTags(ctx context.Context, linkId int64, tags []string) {
 	for _, tag := range tags {
-		t, err := lh.TagsUseCase.Store(ctx, domain.Tags{Name: tag})
-		if err != nil {
-			continue
-		}
-
-		_, err = lh.LinkTagUseCase.Store(ctx, domain.LinkTag{TagId: t, LinkId: linkId})
-		if err != nil {
-			continue
+		t, err := lh.TagsUseCase.FirstOrCreate(ctx, domain.Tags{Name: tag})
+		if err == nil {
+			_, err = lh.LinkTagUseCase.Store(ctx, domain.LinkTag{TagId: t, LinkId: linkId})
+			if err != nil {
+				logrus.Error(err)
+				continue
+			}
+		} else {
+			logrus.Error(err)
 		}
 	}
 }

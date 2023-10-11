@@ -16,8 +16,10 @@ type Tags struct {
 type TagsUseCase interface {
 	Fetch(ctx context.Context, limit int64) ([]Tags, error)
 	GetById(ctx context.Context, id int64) (Tags, error)
-	Update(ctx context.Context, link Tags) (int64, error)
-	Store(ctx context.Context, link Tags) (int64, error)
+	GetByName(ctx context.Context, name string) (Tags, error)
+	Update(ctx context.Context, tags Tags) (int64, error)
+	Store(ctx context.Context, tags Tags) (int64, error)
+	FirstOrCreate(ctx context.Context, tags Tags) (int64, error)
 	Delete(ctx context.Context, id int64) error
 	FetchByLinkId(ctx context.Context, linkId int64) ([]Tags, error)
 }
@@ -26,8 +28,10 @@ type TagsUseCase interface {
 type TagsRepository interface {
 	Fetch(ctx context.Context, limit int64) ([]Tags, error)
 	GetById(ctx context.Context, id int64) (Tags, error)
-	Update(ctx context.Context, link Tags) (int64, error)
-	Store(ctx context.Context, link Tags) (int64, error)
+	GetByName(ctx context.Context, name string) (Tags, error)
+	Update(ctx context.Context, tags Tags) (int64, error)
+	Store(ctx context.Context, tags Tags) (int64, error)
+	FirstOrCreate(ctx context.Context, tags Tags) (int64, error)
 	Delete(ctx context.Context, id int64) error
 	FetchByLinkId(ctx context.Context, linkId int64) ([]Tags, error)
 }

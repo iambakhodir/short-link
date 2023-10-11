@@ -17,8 +17,8 @@ type LinkTag struct {
 type LinkTagUseCase interface {
 	Fetch(ctx context.Context, limit int64) ([]LinkTag, error)
 	GetById(ctx context.Context, id int64) (LinkTag, error)
-	Update(ctx context.Context, link LinkTag) (int64, error)
-	Store(ctx context.Context, link LinkTag) (int64, error)
+	Update(ctx context.Context, linkTag LinkTag) (int64, error)
+	Store(ctx context.Context, linkTag LinkTag) (int64, error)
 	Delete(ctx context.Context, id int64) error
 }
 
@@ -26,7 +26,7 @@ type LinkTagUseCase interface {
 type LinkTagRepository interface {
 	Fetch(ctx context.Context, limit int64) ([]LinkTag, error)
 	GetById(ctx context.Context, id int64) (LinkTag, error)
-	Update(ctx context.Context, link LinkTag) (int64, error)
-	Store(ctx context.Context, link LinkTag) (int64, error)
+	Update(ctx context.Context, linkTag LinkTag) (int64, error)
+	Store(ctx context.Context, linkTag LinkTag) (int64, error)
 	Delete(ctx context.Context, id int64) error
 }
